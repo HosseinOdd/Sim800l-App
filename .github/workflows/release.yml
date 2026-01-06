@@ -31,6 +31,12 @@ jobs:
       with:
         name: jar-file
         path: target/SIM800LManager-v2.0.jar
+        
+    - name: Upload icon
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-icon
+        path: src/main/resources/icons/app-icon.png
 
   build-linux:
     needs: build-jar
@@ -52,6 +58,12 @@ jobs:
         name: jar-file
         path: target/
         
+    - name: Download icon
+      uses: actions/download-artifact@v4
+      with:
+        name: app-icon
+        path: icons/
+        
     - name: Build Linux package with jpackage
       id: jpackage
       continue-on-error: true
@@ -63,6 +75,7 @@ jobs:
           --main-class com.sim800l.SIM800LApp \
           --type app-image \
           --dest dist/linux \
+          --icon icons/app-icon.png \
           --java-options '-Xmx512m' \
           --app-version 2.0
           
@@ -71,6 +84,7 @@ jobs:
       run: |
         mkdir -p dist/linux/SIM800L-Manager
         cp target/SIM800LManager-v2.0.jar dist/linux/SIM800L-Manager/
+        cp icons/app-icon.png dist/linux/SIM800L-Manager/
         cat > dist/linux/SIM800L-Manager/SIM800L-Manager << 'SCRIPT'
         #!/bin/bash
         DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -109,11 +123,29 @@ jobs:
         name: jar-file
         path: target/
         
+    - name: Download icon
+      uses: actions/download-artifact@v4
+      with:
+        name: app-icon
+        path: icons/
+        
+    - name: Convert PNG to ICO
+      shell: pwsh
+      run: |
+        # Install ImageMagick if not available, or use fallback
+        if (Get-Command magick -ErrorAction SilentlyContinue) {
+          magick convert icons/app-icon.png -define icon:auto-resize=256,128,96,64,48,32,16 icons/app-icon.ico
+        } else {
+          Write-Host "ImageMagick not found, copying PNG as fallback"
+          Copy-Item icons/app-icon.png icons/app-icon.ico
+        }
+        
     - name: Build Windows package with jpackage
       id: jpackage
       continue-on-error: true
       shell: pwsh
       run: |
+        $iconPath = if (Test-Path icons/app-icon.ico) { "icons/app-icon.ico" } else { "icons/app-icon.png" }
         jpackage `
           --input target `
           --name SIM800L-Manager `
@@ -121,6 +153,7 @@ jobs:
           --main-class com.sim800l.SIM800LApp `
           --type app-image `
           --dest dist/windows `
+          --icon $iconPath `
           --java-options '-Xmx512m' `
           --app-version 2.0
           
@@ -130,6 +163,7 @@ jobs:
       run: |
         New-Item -ItemType Directory -Force -Path dist/windows/SIM800L-Manager
         Copy-Item target/SIM800LManager-v2.0.jar dist/windows/SIM800L-Manager/
+        Copy-Item icons/app-icon.png dist/windows/SIM800L-Manager/
         @'
         @echo off
         java -jar "%~dp0SIM800LManager-v2.0.jar" %*
@@ -166,6 +200,32 @@ jobs:
         name: jar-file
         path: target/
         
+    - name: Download icon
+      uses: actions/download-artifact@v4
+      with:
+        name: app-icon
+        path: icons/
+        
+    - name: Convert PNG to ICNS
+      run: |
+        # Create iconset directory
+        mkdir -p icons/app-icon.iconset
+        
+        # Use sips to create different sizes
+        sips -z 16 16     icons/app-icon.png --out icons/app-icon.iconset/icon_16x16.png
+        sips -z 32 32     icons/app-icon.png --out icons/app-icon.iconset/icon_16x16@2x.png
+        sips -z 32 32     icons/app-icon.png --out icons/app-icon.iconset/icon_32x32.png
+        sips -z 64 64     icons/app-icon.png --out icons/app-icon.iconset/icon_32x32@2x.png
+        sips -z 128 128   icons/app-icon.png --out icons/app-icon.iconset/icon_128x128.png
+        sips -z 256 256   icons/app-icon.png --out icons/app-icon.iconset/icon_128x128@2x.png
+        sips -z 256 256   icons/app-icon.png --out icons/app-icon.iconset/icon_256x256.png
+        sips -z 512 512   icons/app-icon.png --out icons/app-icon.iconset/icon_256x256@2x.png
+        sips -z 512 512   icons/app-icon.png --out icons/app-icon.iconset/icon_512x512.png
+        cp icons/app-icon.png icons/app-icon.iconset/icon_512x512@2x.png
+        
+        # Convert to icns
+        iconutil -c icns icons/app-icon.iconset -o icons/app-icon.icns
+        
     - name: Build macOS package with jpackage
       id: jpackage
       continue-on-error: true
@@ -177,6 +237,7 @@ jobs:
           --main-class com.sim800l.SIM800LApp \
           --type app-image \
           --dest dist/macos \
+          --icon icons/app-icon.icns \
           --java-options '-Xmx512m' \
           --app-version 2.0
           
@@ -186,6 +247,7 @@ jobs:
         mkdir -p dist/macos/SIM800L-Manager.app/Contents/MacOS
         mkdir -p dist/macos/SIM800L-Manager.app/Contents/Resources
         cp target/SIM800LManager-v2.0.jar dist/macos/SIM800L-Manager.app/Contents/Resources/
+        cp icons/app-icon.png dist/macos/SIM800L-Manager.app/Contents/Resources/
         cat > dist/macos/SIM800L-Manager.app/Contents/MacOS/SIM800L-Manager << 'SCRIPT'
         #!/bin/bash
         DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)"
@@ -205,6 +267,8 @@ jobs:
             <string>SIM800L Manager</string>
             <key>CFBundleVersion</key>
             <string>2.0</string>
+            <key>CFBundleIconFile</key>
+            <string>app-icon.png</string>
         </dict>
         </plist>
         PLIST
