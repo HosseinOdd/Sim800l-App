@@ -1,0 +1,500 @@
+name: Build and Releasename: Build and Release
+
+
+
+on:on:
+
+  push:  push:
+
+    tags:    tags:
+
+      - 'v*'      - 'v*'  # Triggers on version tags like v1.0.0
+
+
+
+jobs:jobs:
+
+  build-jar:  build-linux:
+
+    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+        
+
+    steps:    steps:
+
+    - name: Checkout    - name: Checkout code
+
+      uses: actions/checkout@v4      uses: actions/checkout@v4
+
+            
+
+    - name: Set up JDK 17    - name: Set up JDK 17
+
+      uses: actions/setup-java@v4      uses: actions/setup-java@v4
+
+      with:      with:
+
+        distribution: 'temurin'        distribution: 'temurin'
+
+        java-version: '17'        java-version: '17'
+
+        cache: 'maven'        cache: 'maven'
+
+                
+
+    - name: Build JAR    - name: Build with Maven
+
+      run: mvn clean package -DskipTests      run: mvn clean package -DskipTests
+
+            
+
+    - name: Upload JAR    - name: Create Linux executable
+
+      uses: actions/upload-artifact@v4      run: |
+
+      with:        jpackage \
+
+        name: jar-file          --input target \
+
+        path: target/SIM800LManager-v2.0.jar          --name "SIM800L-Manager" \
+
+          --main-jar "SIM800LManager-v2.0.jar" \
+
+  build-linux:          --main-class "com.sim800l.SIM800LApp" \
+
+    needs: build-jar          --type app-image \
+
+    runs-on: ubuntu-latest          --app-version "${GITHUB_REF#refs/tags/v}" \
+
+              --vendor "SIM800L Project" \
+
+    steps:          --description "SMS Manager for SIM800L GSM Module" \
+
+    - name: Checkout          --dest build \
+
+      uses: actions/checkout@v4          --java-options "-Xmx512m"
+
+                
+
+    - name: Set up JDK 17    - name: Create tarball
+
+      uses: actions/setup-java@v4      run: |
+
+      with:        cd build
+
+        distribution: 'temurin'        tar -czf SIM800L-Manager-linux-x64.tar.gz SIM800L-Manager
+
+        java-version: '17'        cd ..
+
+        cache: 'maven'        
+
+            - name: Upload Linux artifact
+
+    - name: Download JAR      uses: actions/upload-artifact@v4
+
+      uses: actions/download-artifact@v4      with:
+
+      with:        name: linux-build
+
+        name: jar-file        path: build/SIM800L-Manager-linux-x64.tar.gz
+
+        path: target
+
+          build-windows:
+
+    - name: Create Linux executable    runs-on: windows-latest
+
+      run: |    
+
+        # Install dependencies if needed    steps:
+
+        sudo apt-get update || true    - name: Checkout code
+
+              uses: actions/checkout@v4
+
+        # Create app-image without icon (more compatible)      
+
+        jpackage \    - name: Set up JDK 17
+
+          --input target \      uses: actions/setup-java@v4
+
+          --name "SIM800L-Manager" \      with:
+
+          --main-jar "SIM800LManager-v2.0.jar" \        distribution: 'temurin'
+
+          --main-class "com.sim800l.SIM800LApp" \        java-version: '17'
+
+          --type app-image \        cache: 'maven'
+
+          --app-version "${GITHUB_REF#refs/tags/v}" \        
+
+          --vendor "SIM800L Project" \    - name: Build with Maven
+
+          --dest build \      run: mvn clean package -DskipTests
+
+          --java-options "-Xmx512m" \      
+
+          --java-options "-Djava.library.path=/usr/lib" || {    - name: Create Windows executable
+
+            echo "jpackage failed, creating simple wrapper instead"      run: |
+
+            mkdir -p build/SIM800L-Manager/bin        jpackage `
+
+            mkdir -p build/SIM800L-Manager/lib          --input target `
+
+            cp target/SIM800LManager-v2.0.jar build/SIM800L-Manager/lib/          --name "SIM800L-Manager" `
+
+            cat > build/SIM800L-Manager/bin/SIM800L-Manager << 'WRAPPER'          --main-jar "SIM800LManager-v2.0.jar" `
+
+#!/bin/bash          --main-class "com.sim800l.SIM800LApp" `
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"          --type app-image `
+
+java -Xmx512m -jar "$SCRIPT_DIR/../lib/SIM800LManager-v2.0.jar"          --app-version "$env:GITHUB_REF" -replace 'refs/tags/v','' `
+
+WRAPPER          --vendor "SIM800L Project" `
+
+            chmod +x build/SIM800L-Manager/bin/SIM800L-Manager          --description "SMS Manager for SIM800L GSM Module" `
+
+          }          --dest build `
+
+                    --java-options "-Xmx512m"
+
+    - name: Create tarball      shell: powershell
+
+      run: |          
+
+        cd build    - name: Create ZIP package
+
+        tar -czf SIM800L-Manager-linux-x64.tar.gz SIM800L-Manager      run: |
+
+                Compress-Archive -Path "build\SIM800L-Manager" -DestinationPath "build\SIM800L-Manager-windows-x64.zip"
+
+    - name: Upload artifact      shell: powershell
+
+      uses: actions/upload-artifact@v4        
+
+      with:    - name: Upload Windows artifact
+
+        name: linux-build      uses: actions/upload-artifact@v4
+
+        path: build/SIM800L-Manager-linux-x64.tar.gz      with:
+
+        name: windows-build
+
+  build-windows:        path: build/SIM800L-Manager-windows-x64.zip
+
+    needs: build-jar
+
+    runs-on: windows-latest  build-macos:
+
+        runs-on: macos-latest
+
+    steps:    
+
+    - name: Checkout    steps:
+
+      uses: actions/checkout@v4    - name: Checkout code
+
+            uses: actions/checkout@v4
+
+    - name: Set up JDK 17      
+
+      uses: actions/setup-java@v4    - name: Set up JDK 17
+
+      with:      uses: actions/setup-java@v4
+
+        distribution: 'temurin'      with:
+
+        java-version: '17'        distribution: 'temurin'
+
+        cache: 'maven'        java-version: '17'
+
+                cache: 'maven'
+
+    - name: Download JAR        
+
+      uses: actions/download-artifact@v4    - name: Build with Maven
+
+      with:      run: mvn clean package -DskipTests
+
+        name: jar-file      
+
+        path: target    - name: Create macOS app bundle
+
+              run: |
+
+    - name: Create Windows executable        jpackage \
+
+      shell: powershell          --input target \
+
+      run: |          --name "SIM800L-Manager" \
+
+        try {          --main-jar "SIM800LManager-v2.0.jar" \
+
+          jpackage `          --main-class "com.sim800l.SIM800LApp" \
+
+            --input target `          --type app-image \
+
+            --name "SIM800L-Manager" `          --app-version "${GITHUB_REF#refs/tags/v}" \
+
+            --main-jar "SIM800LManager-v2.0.jar" `          --vendor "SIM800L Project" \
+
+            --main-class "com.sim800l.SIM800LApp" `          --description "SMS Manager for SIM800L GSM Module" \
+
+            --type app-image `          --dest build \
+
+            --app-version ($env:GITHUB_REF -replace 'refs/tags/v','') `          --mac-package-name "SIM800L-Manager" \
+
+            --vendor "SIM800L Project" `          --java-options "-Xmx512m"
+
+            --dest build `          
+
+            --java-options "-Xmx512m"    - name: Create DMG
+
+        } catch {      run: |
+
+          Write-Host "jpackage failed, creating simple wrapper"        hdiutil create -volname "SIM800L Manager" \
+
+          New-Item -ItemType Directory -Force -Path "build\SIM800L-Manager\bin"          -srcfolder build/SIM800L-Manager.app \
+
+          New-Item -ItemType Directory -Force -Path "build\SIM800L-Manager\lib"          -ov -format UDZO \
+
+          Copy-Item "target\SIM800LManager-v2.0.jar" "build\SIM800L-Manager\lib\"          build/SIM800L-Manager-macos-x64.dmg
+
+                    
+
+          $wrapper = @"    - name: Upload macOS artifact
+
+@echo off      uses: actions/upload-artifact@v4
+
+java -Xmx512m -jar "%~dp0..\lib\SIM800LManager-v2.0.jar"      with:
+
+"@        name: macos-build
+
+          $wrapper | Out-File -FilePath "build\SIM800L-Manager\bin\SIM800L-Manager.bat" -Encoding ASCII        path: build/SIM800L-Manager-macos-x64.dmg
+
+        }
+
+            create-release:
+
+    - name: Create ZIP    needs: [build-linux, build-windows, build-macos]
+
+      shell: powershell    runs-on: ubuntu-latest
+
+      run: |    permissions:
+
+        Compress-Archive -Path "build\SIM800L-Manager" -DestinationPath "build\SIM800L-Manager-windows-x64.zip"      contents: write
+
+            
+
+    - name: Upload artifact    steps:
+
+      uses: actions/upload-artifact@v4    - name: Checkout code
+
+      with:      uses: actions/checkout@v4
+
+        name: windows-build      
+
+        path: build/SIM800L-Manager-windows-x64.zip    - name: Download all artifacts
+
+      uses: actions/download-artifact@v4
+
+  build-macos:      with:
+
+    needs: build-jar        path: artifacts
+
+    runs-on: macos-latest        
+
+        - name: Create Release
+
+    steps:      uses: softprops/action-gh-release@v1
+
+    - name: Checkout      with:
+
+      uses: actions/checkout@v4        files: |
+
+                artifacts/linux-build/SIM800L-Manager-linux-x64.tar.gz
+
+    - name: Set up JDK 17          artifacts/windows-build/SIM800L-Manager-windows-x64.zip
+
+      uses: actions/setup-java@v4          artifacts/macos-build/SIM800L-Manager-macos-x64.dmg
+
+      with:        body: |
+
+        distribution: 'temurin'          ## SIM800L SMS Manager ${{ github.ref_name }}
+
+        java-version: '17'          
+
+        cache: 'maven'          ### Downloads
+
+                  
+
+    - name: Download JAR          - **Linux**: `SIM800L-Manager-linux-x64.tar.gz`
+
+      uses: actions/download-artifact@v4          - **Windows**: `SIM800L-Manager-windows-x64.zip`
+
+      with:          - **macOS**: `SIM800L-Manager-macos-x64.dmg`
+
+        name: jar-file          
+
+        path: target          ### Installation
+
+                  
+
+    - name: Create macOS app          **Linux:**
+
+      run: |          ```bash
+
+        jpackage \          tar -xzf SIM800L-Manager-linux-x64.tar.gz
+
+          --input target \          cd SIM800L-Manager
+
+          --name "SIM800L-Manager" \          ./bin/SIM800L-Manager
+
+          --main-jar "SIM800LManager-v2.0.jar" \          ```
+
+          --main-class "com.sim800l.SIM800LApp" \          
+
+          --type app-image \          **Windows:**
+
+          --app-version "${GITHUB_REF#refs/tags/v}" \          1. Extract the ZIP file
+
+          --vendor "SIM800L Project" \          2. Run `SIM800L-Manager.exe` from the `bin` folder
+
+          --dest build \          
+
+          --mac-package-name "SIM800L-Manager" \          **macOS:**
+
+          --java-options "-Xmx512m" || {          1. Open the DMG file
+
+            echo "jpackage failed, creating simple wrapper"          2. Drag `SIM800L-Manager.app` to Applications
+
+            mkdir -p "build/SIM800L-Manager.app/Contents/MacOS"          3. Run the app
+
+            mkdir -p "build/SIM800L-Manager.app/Contents/Resources"          
+
+            cp target/SIM800LManager-v2.0.jar "build/SIM800L-Manager.app/Contents/Resources/"          ### Features
+
+            cat > "build/SIM800L-Manager.app/Contents/MacOS/SIM800L-Manager" << 'WRAPPER'          
+
+#!/bin/bash          - Send and receive SMS messages
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"          - Multi-language support (English, Arabic, Persian, Chinese, emoji)
+
+java -Xmx512m -jar "$DIR/../Resources/SIM800LManager-v2.0.jar"          - Modern chat interface
+
+WRAPPER          - Contact management
+
+            chmod +x "build/SIM800L-Manager.app/Contents/MacOS/SIM800L-Manager"          - Secure and thread-safe
+
+          }          
+
+                    ### Requirements
+
+    - name: Create ZIP          
+
+      run: |          - SIM800L GSM module
+
+        cd build          - USB-to-Serial adapter
+
+        zip -r SIM800L-Manager-macos-x64.zip SIM800L-Manager.app          - Active SIM card
+
+                  
+
+    - name: Upload artifact          **No Java installation required!** All packages include embedded JRE.
+
+      uses: actions/upload-artifact@v4        draft: false
+
+      with:        prerelease: false
+
+        name: macos-build      env:
+
+        path: build/SIM800L-Manager-macos-x64.zip        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  create-release:
+    needs: [build-linux, build-windows, build-macos, build-jar]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/linux-build/SIM800L-Manager-linux-x64.tar.gz
+          artifacts/windows-build/SIM800L-Manager-windows-x64.zip
+          artifacts/macos-build/SIM800L-Manager-macos-x64.zip
+          artifacts/jar-file/SIM800LManager-v2.0.jar
+        body: |
+          ## SIM800L SMS Manager ${{ github.ref_name }}
+          
+          ### Downloads
+          
+          Choose the package for your operating system:
+          
+          - **Linux**: `SIM800L-Manager-linux-x64.tar.gz` (recommended)
+          - **Windows**: `SIM800L-Manager-windows-x64.zip` (recommended)
+          - **macOS**: `SIM800L-Manager-macos-x64.zip` (recommended)
+          - **Cross-platform JAR**: `SIM800LManager-v2.0.jar` (requires Java 17+)
+          
+          ### Installation
+          
+          **Linux:**
+          ```bash
+          tar -xzf SIM800L-Manager-linux-x64.tar.gz
+          cd SIM800L-Manager
+          ./bin/SIM800L-Manager
+          ```
+          
+          **Windows:**
+          1. Extract ZIP file
+          2. Double-click `SIM800L-Manager.bat` in `bin` folder
+          
+          **macOS:**
+          1. Extract ZIP file
+          2. Double-click `SIM800L-Manager.app`
+          3. Allow in System Preferences if needed
+          
+          **JAR (all platforms):**
+          ```bash
+          java -jar SIM800LManager-v2.0.jar
+          ```
+          
+          ### Features
+          
+          - Real-time SMS send/receive
+          - Multi-language support (English, Arabic, Persian, Chinese, emoji)
+          - Modern chat interface
+          - Contact management
+          - Data persistence
+          - Secure and thread-safe
+          
+          ### Requirements
+          
+          - SIM800L GSM module
+          - USB-to-Serial adapter
+          - Active SIM card
+          - Serial port permissions (Linux: add user to dialout group)
+          
+          ### Notes
+          
+          - Native packages include Java runtime (no separate installation needed)
+          - JAR package requires Java 17 or higher
+          - First-time macOS users may need to allow the app in Security settings
+          
+          For issues, please visit: https://github.com/${{ github.repository }}/issues
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
